@@ -113,6 +113,31 @@ input[type=search]{padding:10px 14px;margin-bottom:12px}
 .month-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #334155}
 .month-row:last-child{border-bottom:none}
 
+/* Trips */
+.trip-card{background:#1e293b;border-radius:14px;padding:14px;margin-bottom:10px;cursor:pointer;border:1px solid #334155;transition:border-color .2s}
+.trip-card:active{border-color:#6366f1}
+.trip-name{font-size:15px;font-weight:700;color:#f1f5f9}
+.trip-meta{font-size:11px;color:#64748b;margin-top:3px}
+.trip-total{font-size:13px;color:#a5b4fc;font-weight:700;margin-top:6px}
+.member-chip{display:inline-flex;align-items:center;gap:5px;background:#0f172a;border:1px solid #334155;border-radius:20px;padding:5px 10px 5px 5px;font-size:12px;margin:3px 4px 3px 0}
+.member-avatar{width:20px;height:20px;border-radius:50%;background:#6366f1;color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+.member-remove{color:#f87171;font-weight:700;cursor:pointer;padding:0 2px}
+.split-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #1e293b}
+.split-row:last-child{border-bottom:none}
+.split-name{font-size:13px;color:#cbd5e1}
+.split-check{width:20px;height:20px;border-radius:6px;border:1.5px solid #475569;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;flex-shrink:0}
+.split-check.checked{background:#6366f1;border-color:#6366f1;color:#fff}
+.balance-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #334155}
+.balance-row:last-child{border-bottom:none}
+.balance-name{font-size:13.5px;font-weight:600;color:#f1f5f9}
+.settle-arrow{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#0f172a;border-radius:10px;margin-bottom:8px;font-size:13px}
+.settle-amt{color:#fbbf24;font-weight:700;margin-left:auto}
+.back-btn{display:flex;align-items:center;gap:6px;color:#818cf8;font-size:13px;font-weight:600;margin-bottom:12px;cursor:pointer;background:none;border:none;padding:4px 0}
+.leader-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #1e293b}
+.leader-rank{width:22px;height:22px;border-radius:50%;background:#334155;color:#cbd5e1;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.leader-bar-track{flex:1;height:8px;background:#334155;border-radius:4px;overflow:hidden}
+.leader-bar-fill{height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:4px}
+
 /* Scrollable content below sticky elements */
 #content{flex:1;overflow:hidden;display:flex;flex-direction:column}
 </style>
@@ -129,6 +154,7 @@ input[type=search]{padding:10px 14px;margin-bottom:12px}
     <button onclick="switchTab('transactions')">📋 History</button>
     <button onclick="switchTab('add')">➕ Add</button>
     <button onclick="switchTab('debt')">🤝 Debt</button>
+    <button onclick="switchTab('trips')">✈️ Trips</button>
     <button onclick="switchTab('analytics')">📊 Analytics</button>
   </div>
 
@@ -207,6 +233,56 @@ input[type=search]{padding:10px 14px;margin-bottom:12px}
     <div id="debt-list"></div>
   </div>
 
+  <!-- TRIPS -->
+  <div id="tab-trips" class="page">
+    <!-- Trip List View -->
+    <div id="trips-list-view">
+      <div class="card">
+        <div class="card-title">✈️ New Trip / Group</div>
+        <input type="text" id="trip-name" placeholder="Trip name (e.g. Srinagar Trip)"/>
+        <input type="text" id="trip-members-input" placeholder="Member name, then tap Add"/>
+        <button class="btn-cancel" style="margin-top:0;margin-bottom:10px" onclick="addTripMember()">➕ Add Member</button>
+        <div id="trip-new-members"></div>
+        <button class="btn-main" onclick="createTrip()">✅ Create Trip</button>
+      </div>
+      <div id="trips-list"></div>
+    </div>
+
+    <!-- Trip Detail View -->
+    <div id="trip-detail-view" style="display:none">
+      <button class="back-btn" onclick="closeTripDetail()">← Back to Trips</button>
+      <div class="card">
+        <div class="card-title" id="trip-detail-name">Trip Name</div>
+        <div id="trip-detail-members"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">➕ Add Trip Expense</div>
+        <input type="text" id="te-desc" placeholder="What was it for? (e.g. Dinner)"/>
+        <input type="number" id="te-amount" placeholder="Amount (₹)" inputmode="decimal"/>
+        <select id="te-paidby"></select>
+        <div style="font-size:11px;color:#64748b;margin:8px 0 4px;font-weight:600">SPLIT BETWEEN:</div>
+        <div id="te-split-list"></div>
+        <button class="btn-main" style="margin-top:10px" onclick="addTripExpense()">💾 Add Expense</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🏆 Who Spent Most</div>
+        <div id="trip-leaderboard"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">💸 Settle Up (Minimum Transactions)</div>
+        <div id="trip-settlement"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🧾 Expense Timeline</div>
+        <div id="trip-expense-list"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ANALYTICS -->
   <div id="tab-analytics" class="page">
     <input type="month" id="an-month" onchange="renderAnalytics()" style="width:100%;margin-bottom:12px"/>
@@ -238,14 +314,19 @@ const TYPE_COLOR = {expense:'#f87171',income:'#4ade80'};
 
 let txns = JSON.parse(localStorage.getItem('et_txns')||'[]');
 let debts = JSON.parse(localStorage.getItem('et_debts')||'[]');
+let trips = JSON.parse(localStorage.getItem('et_trips')||'[]');
 let editId = null;
 let txType = 'expense';
 let debtKind = 'lent';
 let txFilter = 'all';
+let newTripMembers = [];
+let activeTripId = null;
+let teSplitWith = [];
 
 function save(){
   localStorage.setItem('et_txns', JSON.stringify(txns));
   localStorage.setItem('et_debts', JSON.stringify(debts));
+  localStorage.setItem('et_trips', JSON.stringify(trips));
 }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2); }
 function fmt(n){ return '₹'+Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
@@ -263,11 +344,12 @@ function switchTab(name){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('#tabbar button').forEach(b=>b.classList.remove('active'));
   document.getElementById('tab-'+name).classList.add('active');
-  const tabs=['dashboard','transactions','add','debt','analytics'];
+  const tabs=['dashboard','transactions','add','debt','trips','analytics'];
   document.querySelectorAll('#tabbar button')[tabs.indexOf(name)].classList.add('active');
   if(name==='transactions') renderTransactions();
   if(name==='analytics') renderAnalytics();
   if(name==='debt') renderDebt();
+  if(name==='trips') renderTripsList();
   if(name==='dashboard') renderDashboard();
 }
 
@@ -469,6 +551,222 @@ function renderDebt(){
         </div>
       </div>`).join('')
     : '<div class="empty"><big>🤝</big>No debt entries yet</div>';
+}
+
+// ===== TRIPS =====
+function addTripMember(){
+  const input=document.getElementById('trip-members-input');
+  const name=input.value.trim();
+  if(!name) return;
+  if(newTripMembers.includes(name)) return toast('⚠️ Already added');
+  newTripMembers.push(name);
+  input.value='';
+  renderNewTripMembers();
+}
+function removeTripMember(name){
+  newTripMembers=newTripMembers.filter(m=>m!==name);
+  renderNewTripMembers();
+}
+function renderNewTripMembers(){
+  document.getElementById('trip-new-members').innerHTML = newTripMembers.map(m=>
+    `<span class="member-chip"><span class="member-avatar">${m[0].toUpperCase()}</span>${m}<span class="member-remove" onclick="removeTripMember('${m}')">✕</span></span>`
+  ).join('') || '<div style="font-size:12px;color:#475569;margin-bottom:8px">No members added yet</div>';
+}
+function createTrip(){
+  const name=document.getElementById('trip-name').value.trim();
+  if(!name) return toast('⚠️ Trip name daalo!');
+  if(newTripMembers.length<2) return toast('⚠️ Kam se kam 2 members add karo!');
+  trips.unshift({
+    id:uid(), name, members:[...newTripMembers],
+    expenses:[], date:new Date().toISOString().slice(0,10)
+  });
+  newTripMembers=[];
+  document.getElementById('trip-name').value='';
+  renderNewTripMembers();
+  save(); renderTripsList(); toast('✅ Trip created!');
+}
+function deleteTrip(id, ev){
+  if(ev) ev.stopPropagation();
+  if(!confirm('Delete this trip and all its expenses?')) return;
+  trips=trips.filter(t=>t.id!==id);
+  save(); renderTripsList(); toast('🗑️ Trip deleted');
+}
+function renderTripsList(){
+  document.getElementById('trips-list-view').style.display='block';
+  document.getElementById('trip-detail-view').style.display='none';
+  renderNewTripMembers();
+  const list=document.getElementById('trips-list');
+  if(!trips.length){
+    list.innerHTML='<div class="empty"><big>✈️</big>No trips yet<br><small>Create one above to split expenses!</small></div>';
+    return;
+  }
+  list.innerHTML = trips.map(t=>{
+    const total=t.expenses.reduce((s,e)=>s+e.amount,0);
+    return `<div class="trip-card" onclick="openTripDetail('${t.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="trip-name">${t.name}</div>
+          <div class="trip-meta">${t.members.length} members · ${t.expenses.length} expenses</div>
+          <div class="trip-total">${fmt(total)} total</div>
+        </div>
+        <button class="tx-btn del-btn" style="flex:0 0 auto;padding:6px 10px" onclick="deleteTrip('${t.id}', event)">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function openTripDetail(id){
+  activeTripId=id;
+  teSplitWith=[];
+  document.getElementById('trips-list-view').style.display='none';
+  document.getElementById('trip-detail-view').style.display='block';
+  renderTripDetail();
+}
+function closeTripDetail(){
+  activeTripId=null;
+  renderTripsList();
+}
+function getActiveTrip(){ return trips.find(t=>t.id===activeTripId); }
+
+function renderTripDetail(){
+  const trip=getActiveTrip();
+  if(!trip) return closeTripDetail();
+  document.getElementById('trip-detail-name').textContent='✈️ '+trip.name;
+  document.getElementById('trip-detail-members').innerHTML = trip.members.map(m=>
+    `<span class="member-chip"><span class="member-avatar">${m[0].toUpperCase()}</span>${m}</span>`
+  ).join('');
+
+  // Paid-by dropdown
+  document.getElementById('te-paidby').innerHTML = trip.members.map(m=>`<option>${m}</option>`).join('');
+
+  // Split-with checklist (default: all selected)
+  if(teSplitWith.length===0) teSplitWith=[...trip.members];
+  document.getElementById('te-split-list').innerHTML = trip.members.map(m=>{
+    const checked=teSplitWith.includes(m);
+    return `<div class="split-row">
+      <span class="split-name">${m}</span>
+      <div class="split-check ${checked?'checked':''}" onclick="toggleSplitMember('${m}')">${checked?'✓':''}</div>
+    </div>`;
+  }).join('');
+
+  renderTripLeaderboard(trip);
+  renderTripSettlement(trip);
+  renderTripExpenseList(trip);
+}
+function toggleSplitMember(m){
+  if(teSplitWith.includes(m)) teSplitWith=teSplitWith.filter(x=>x!==m);
+  else teSplitWith.push(m);
+  renderTripDetail();
+}
+function addTripExpense(){
+  const trip=getActiveTrip(); if(!trip) return;
+  const desc=document.getElementById('te-desc').value.trim();
+  const amount=parseFloat(document.getElementById('te-amount').value);
+  const paidBy=document.getElementById('te-paidby').value;
+  if(!desc) return toast('⚠️ Description daalo!');
+  if(!amount||amount<=0) return toast('⚠️ Valid amount daalo!');
+  if(teSplitWith.length===0) return toast('⚠️ Kam se kam 1 member select karo split ke liye!');
+  trip.expenses.unshift({
+    id:uid(), desc, amount, paidBy,
+    splitWith:[...teSplitWith],
+    date:new Date().toISOString().slice(0,10)
+  });
+  document.getElementById('te-desc').value='';
+  document.getElementById('te-amount').value='';
+  save(); renderTripDetail(); toast('✅ Expense added!');
+}
+function deleteTripExpense(expId){
+  const trip=getActiveTrip(); if(!trip) return;
+  if(!confirm('Delete this expense?')) return;
+  trip.expenses=trip.expenses.filter(e=>e.id!==expId);
+  save(); renderTripDetail(); toast('🗑️ Deleted');
+}
+
+// Calculate net balance per member: positive = should receive, negative = owes
+function calcTripBalances(trip){
+  const balance={};
+  trip.members.forEach(m=>balance[m]=0);
+  trip.expenses.forEach(e=>{
+    const share=e.amount/e.splitWith.length;
+    balance[e.paidBy]=(balance[e.paidBy]||0)+e.amount;
+    e.splitWith.forEach(m=>{ balance[m]=(balance[m]||0)-share; });
+  });
+  return balance;
+}
+
+function renderTripLeaderboard(trip){
+  const spent={};
+  trip.members.forEach(m=>spent[m]=0);
+  trip.expenses.forEach(e=>{ spent[e.paidBy]=(spent[e.paidBy]||0)+e.amount; });
+  const sorted=Object.entries(spent).sort((a,b)=>b[1]-a[1]);
+  const max=sorted.length?sorted[0][1]:0;
+  document.getElementById('trip-leaderboard').innerHTML = sorted.length && max>0
+    ? sorted.map(([name,amt],i)=>`
+      <div class="leader-row">
+        <div class="leader-rank">${i+1}</div>
+        <span style="font-size:13px;color:#f1f5f9;width:70px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis">${name}</span>
+        <div class="leader-bar-track"><div class="leader-bar-fill" style="width:${max?Math.round(amt/max*100):0}%"></div></div>
+        <span style="font-size:12px;color:#a5b4fc;font-weight:700;width:70px;text-align:right">${fmt(amt)}</span>
+      </div>`).join('')
+    : '<div class="empty" style="padding:16px"><big>🤷</big>No expenses yet</div>';
+}
+
+function renderTripSettlement(trip){
+  const balance=calcTripBalances(trip);
+  // Round to avoid floating point dust
+  const creditors=[]; // people who should receive money (positive balance)
+  const debtors=[];   // people who owe money (negative balance)
+  Object.entries(balance).forEach(([name,bal])=>{
+    const rounded=Math.round(bal*100)/100;
+    if(rounded>0.5) creditors.push({name,amt:rounded});
+    else if(rounded<-0.5) debtors.push({name,amt:-rounded});
+  });
+  creditors.sort((a,b)=>b.amt-a.amt);
+  debtors.sort((a,b)=>b.amt-a.amt);
+
+  const transactions=[];
+  let ci=0, di=0;
+  const cr=creditors.map(c=>({...c}));
+  const db=debtors.map(d=>({...d}));
+  while(ci<cr.length && di<db.length){
+    const pay=Math.min(cr[ci].amt, db[di].amt);
+    if(pay>0.5){
+      transactions.push({from:db[di].name, to:cr[ci].name, amt:pay});
+    }
+    cr[ci].amt-=pay;
+    db[di].amt-=pay;
+    if(cr[ci].amt<0.5) ci++;
+    if(db[di].amt<0.5) di++;
+  }
+
+  document.getElementById('trip-settlement').innerHTML = transactions.length
+    ? transactions.map(t=>`
+      <div class="settle-arrow">
+        <span style="color:#f87171;font-weight:600">${t.from}</span>
+        <span style="color:#64748b">→</span>
+        <span style="color:#4ade80;font-weight:600">${t.to}</span>
+        <span class="settle-amt">${fmt(t.amt)}</span>
+      </div>`).join('')
+    : '<div class="empty" style="padding:16px"><big>✅</big>All settled up!</div>';
+}
+
+function renderTripExpenseList(trip){
+  const sorted=[...trip.expenses].sort((a,b)=>b.date.localeCompare(a.date));
+  document.getElementById('trip-expense-list').innerHTML = sorted.length
+    ? sorted.map(e=>`
+      <div class="tx-row" style="flex-direction:column;align-items:stretch;gap:0">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="tx-icon" style="background:#6366f120">💳</div>
+          <div class="tx-info">
+            <div class="tx-name">${e.desc}</div>
+            <div class="tx-cat">Paid by ${e.paidBy} · split ${e.splitWith.length} ways · ${fmtDate(e.date)}</div>
+          </div>
+          <div class="tx-amt" style="color:#a5b4fc">${fmt(e.amount)}</div>
+        </div>
+        <div class="tx-actions">
+          <button class="tx-btn del-btn" onclick="deleteTripExpense('${e.id}')">🗑️ Delete</button>
+        </div>
+      </div>`).join('')
+    : '<div class="empty" style="padding:16px"><big>🧾</big>No expenses logged yet</div>';
 }
 
 function renderAnalytics(){
