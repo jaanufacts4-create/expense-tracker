@@ -152,6 +152,26 @@ input[type=search]{padding:10px 14px;margin-bottom:12px}
 .account-row-item:last-child{border-bottom:none}
 .account-row-name{font-size:14px;font-weight:600;color:#f1f5f9}
 .modal-close-x{position:absolute;top:14px;right:16px;color:#64748b;font-size:20px;cursor:pointer;background:none;border:none}
+.account-row-actions{display:flex;gap:6px;align-items:center}
+.pin-mini-btn{background:#6366f122;color:#818cf8;border:none;border-radius:8px;padding:5px 9px;font-size:11px;font-weight:600;cursor:pointer}
+
+/* PIN Lock Screen */
+#pin-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:#0f172a;z-index:2000;align-items:center;justify-content:center;flex-direction:column;padding:30px}
+#pin-overlay.show{display:flex}
+.pin-lock-icon{font-size:42px;margin-bottom:12px}
+.pin-title{font-size:17px;font-weight:700;color:#f1f5f9;margin-bottom:4px;text-align:center}
+.pin-subtitle{font-size:13px;color:#64748b;margin-bottom:26px;text-align:center}
+.pin-dots{display:flex;gap:14px;margin-bottom:30px}
+.pin-dot{width:16px;height:16px;border-radius:50%;border:2px solid #475569;transition:all .15s}
+.pin-dot.filled{background:#6366f1;border-color:#6366f1}
+.pin-dot.error{border-color:#ef4444;background:#ef4444}
+.pin-keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;width:100%;max-width:280px}
+.pin-key{aspect-ratio:1;border-radius:50%;background:#1e293b;border:1px solid #334155;color:#f1f5f9;font-size:22px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.pin-key:active{background:#334155}
+.pin-key.empty{background:transparent;border:none;cursor:default}
+.pin-forgot{margin-top:22px;color:#818cf8;font-size:13px;font-weight:600;background:none;border:none;cursor:pointer}
+.pin-cancel{margin-top:10px;color:#64748b;font-size:13px;background:none;border:none;cursor:pointer}
+.pin-setup-input{width:100%;max-width:280px;text-align:center;font-size:24px;letter-spacing:10px;padding:14px;background:#0f172a;border:1.5px solid #334155;border-radius:12px;color:#f1f5f9;margin-bottom:12px}
 
 /* Scrollable content below sticky elements */
 #content{flex:1;overflow:hidden;display:flex;flex-direction:column}
@@ -333,6 +353,61 @@ input[type=search]{padding:10px 14px;margin-bottom:12px}
   </div>
 </div>
 
+<!-- PIN Setup Modal -->
+<div id="pin-setup-overlay" onclick="if(event.target===this) closePinSetup()" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:1500;align-items:flex-end;justify-content:center">
+  <div style="background:#1e293b;border-radius:18px 18px 0 0;padding:18px;width:100%;max-width:430px;position:relative">
+    <button class="modal-close-x" onclick="closePinSetup()">✕</button>
+    <div class="card-title" id="pin-setup-title">🔒 Set PIN</div>
+    <div id="pin-setup-step1">
+      <p style="font-size:12px;color:#94a3b8;margin-bottom:10px">Enter a 4-digit PIN for <strong id="pin-setup-account-name" style="color:#f1f5f9"></strong></p>
+      <input type="tel" maxlength="4" inputmode="numeric" id="pin-new-input" class="pin-setup-input" placeholder="••••" style="letter-spacing:18px"/>
+      <p style="font-size:12px;color:#94a3b8;margin-bottom:6px;margin-top:10px">Security question (for recovery if you forget PIN):</p>
+      <input type="text" id="pin-security-q" placeholder="e.g. My pet's name?"/>
+      <input type="text" id="pin-security-a" placeholder="Answer"/>
+      <button class="btn-main" onclick="savePinSetup()">💾 Save PIN</button>
+      <button class="btn-cancel" id="pin-remove-btn" style="display:none" onclick="removePin()">🔓 Remove PIN Protection</button>
+    </div>
+  </div>
+</div>
+
+<!-- PIN Lock Screen (enter PIN to unlock) -->
+<div id="pin-overlay">
+  <div class="pin-lock-icon">🔒</div>
+  <div class="pin-title" id="pin-lock-title">Enter PIN</div>
+  <div class="pin-subtitle" id="pin-lock-subtitle">Account locked</div>
+  <div class="pin-dots" id="pin-dots">
+    <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+  </div>
+  <div class="pin-keypad">
+    <button class="pin-key" onclick="pinPress('1')">1</button>
+    <button class="pin-key" onclick="pinPress('2')">2</button>
+    <button class="pin-key" onclick="pinPress('3')">3</button>
+    <button class="pin-key" onclick="pinPress('4')">4</button>
+    <button class="pin-key" onclick="pinPress('5')">5</button>
+    <button class="pin-key" onclick="pinPress('6')">6</button>
+    <button class="pin-key" onclick="pinPress('7')">7</button>
+    <button class="pin-key" onclick="pinPress('8')">8</button>
+    <button class="pin-key" onclick="pinPress('9')">9</button>
+    <div class="pin-key empty"></div>
+    <button class="pin-key" onclick="pinPress('0')">0</button>
+    <button class="pin-key" onclick="pinBackspace()">⌫</button>
+  </div>
+  <button class="pin-forgot" onclick="startPinRecovery()">Forgot PIN?</button>
+  <button class="pin-cancel" onclick="cancelPinUnlock()">Cancel</button>
+</div>
+
+<!-- PIN Recovery Modal -->
+<div id="pin-recovery-overlay" onclick="if(event.target===this) closePinRecovery()" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:2100;align-items:flex-end;justify-content:center">
+  <div style="background:#1e293b;border-radius:18px 18px 0 0;padding:18px;width:100%;max-width:430px;position:relative">
+    <button class="modal-close-x" onclick="closePinRecovery()">✕</button>
+    <div class="card-title">🔑 Recover PIN</div>
+    <p style="font-size:13px;color:#94a3b8;margin-bottom:10px" id="pin-recovery-question"></p>
+    <input type="text" id="pin-recovery-answer" placeholder="Your answer"/>
+    <button class="btn-main" onclick="verifyPinRecovery()">✅ Verify & Reset PIN</button>
+  </div>
+</div>
+
+
 <div id="toast"></div>
 
 <script>
@@ -360,6 +435,12 @@ let newTripMembers = [];
 let activeTripId = null;
 let teSplitWith = [];
 
+// PIN lock state
+let unlockedAccounts = new Set(JSON.parse(sessionStorage.getItem('et_unlocked')||'[]')); // unlocked for this session
+let pinEntryBuffer = '';
+let pinPendingAction = null; // {type:'switch'|'open', accountId, callback}
+let pinSetupAccountId = null;
+
 // One-time migration: tag any pre-existing entries (no accountId) as 'personal'
 let migrated=false;
 txns.forEach(t=>{ if(!t.accountId){ t.accountId='personal'; migrated=true; } });
@@ -376,10 +457,22 @@ if(migrated) save();
 
 // ===== ACCOUNTS =====
 function visibleTxns(){
-  return currentAccount==='all' ? txns : txns.filter(t=>t.accountId===currentAccount);
+  if(currentAccount==='all'){
+    return txns.filter(t=>{
+      const acc=accounts.find(a=>a.id===t.accountId);
+      return !acc || !acc.pin || unlockedAccounts.has(acc.id);
+    });
+  }
+  return txns.filter(t=>t.accountId===currentAccount);
 }
 function visibleDebts(){
-  return currentAccount==='all' ? debts : debts.filter(d=>d.accountId===currentAccount);
+  if(currentAccount==='all'){
+    return debts.filter(d=>{
+      const acc=accounts.find(a=>a.id===d.accountId);
+      return !acc || !acc.pin || unlockedAccounts.has(acc.id);
+    });
+  }
+  return debts.filter(d=>d.accountId===currentAccount);
 }
 function populateAccountSelect(){
   const sel=document.getElementById('account-select');
@@ -389,6 +482,34 @@ function populateAccountSelect(){
   sel.value=currentAccount;
 }
 function switchAccount(id){
+  // If switching to a specific account that has a PIN, and not yet unlocked this session
+  if(id!=='all'){
+    const acc=accounts.find(a=>a.id===id);
+    if(acc && acc.pin && !unlockedAccounts.has(id)){
+      // revert dropdown visually until unlocked
+      document.getElementById('account-select').value=currentAccount;
+      requestPinUnlock(id, ()=>{
+        currentAccount=id;
+        save();
+        document.getElementById('account-select').value=id;
+        renderAll();
+      });
+      return;
+    }
+  } else {
+    // Switching to "All Accounts" - require PIN for any locked account not yet unlocked
+    const lockedOnes = accounts.filter(a=>a.pin && !unlockedAccounts.has(a.id));
+    if(lockedOnes.length){
+      document.getElementById('account-select').value=currentAccount;
+      requestPinUnlockSequence(lockedOnes.map(a=>a.id), ()=>{
+        currentAccount='all';
+        save();
+        document.getElementById('account-select').value='all';
+        renderAll();
+      });
+      return;
+    }
+  }
   currentAccount=id;
   save();
   renderAll();
@@ -404,9 +525,13 @@ function renderAccountModalList(){
   document.getElementById('account-modal-list').innerHTML = accounts.map(a=>{
     const count = txns.filter(t=>t.accountId===a.id).length + debts.filter(d=>d.accountId===a.id).length;
     const canDelete = accounts.length>1;
+    const hasPin = !!a.pin;
     return `<div class="account-row-item">
       <span class="account-row-name">${a.name} <span style="color:#64748b;font-weight:400">(${count} entries)</span></span>
-      ${canDelete?`<button class="tx-btn del-btn" style="flex:0 0 auto;padding:5px 10px" onclick="deleteAccount('${a.id}')">🗑️</button>`:''}
+      <div class="account-row-actions">
+        <button class="pin-mini-btn" onclick="openPinSetup('${a.id}')">${hasPin?'🔒 Change PIN':'🔓 Set PIN'}</button>
+        ${canDelete?`<button class="tx-btn del-btn" style="flex:0 0 auto;padding:5px 10px" onclick="deleteAccount('${a.id}')">🗑️</button>`:''}
+      </div>
     </div>`;
   }).join('');
 }
@@ -435,6 +560,164 @@ function deleteAccount(id){
   renderAccountModalList();
   renderAll();
   toast('🗑️ Account deleted');
+}
+
+// ===== PIN: SETUP =====
+function openPinSetup(accountId){
+  pinSetupAccountId=accountId;
+  const acc=accounts.find(a=>a.id===accountId);
+  document.getElementById('pin-setup-account-name').textContent=acc.name;
+  document.getElementById('pin-setup-title').textContent = acc.pin ? '🔒 Change PIN' : '🔒 Set PIN';
+  document.getElementById('pin-new-input').value='';
+  document.getElementById('pin-security-q').value=acc.securityQ||'';
+  document.getElementById('pin-security-a').value='';
+  document.getElementById('pin-remove-btn').style.display = acc.pin ? 'block' : 'none';
+  document.getElementById('pin-setup-overlay').style.display='flex';
+}
+function closePinSetup(){
+  document.getElementById('pin-setup-overlay').style.display='none';
+  pinSetupAccountId=null;
+}
+function savePinSetup(){
+  const pin=document.getElementById('pin-new-input').value.trim();
+  const q=document.getElementById('pin-security-q').value.trim();
+  const a=document.getElementById('pin-security-a').value.trim();
+  if(!/^\d{4}$/.test(pin)) return toast('⚠️ 4-digit PIN daalo!');
+  const acc=accounts.find(ac=>ac.id===pinSetupAccountId);
+  if(!acc) return;
+  acc.pin=pin;
+  if(q && a){ acc.securityQ=q; acc.securityA=a.toLowerCase(); }
+  unlockedAccounts.add(acc.id); // setting PIN unlocks it for current session
+  sessionStorage.setItem('et_unlocked', JSON.stringify([...unlockedAccounts]));
+  save();
+  closePinSetup();
+  renderAccountModalList();
+  toast('🔒 PIN saved!');
+}
+function removePin(){
+  const acc=accounts.find(ac=>ac.id===pinSetupAccountId);
+  if(!acc) return;
+  if(!confirm('Remove PIN protection for '+acc.name+'?')) return;
+  delete acc.pin; delete acc.securityQ; delete acc.securityA;
+  save();
+  closePinSetup();
+  renderAccountModalList();
+  toast('🔓 PIN removed');
+}
+
+// ===== PIN: UNLOCK FLOW =====
+function requestPinUnlock(accountId, onSuccess){
+  pinPendingAction={type:'single', queue:[accountId], onSuccess};
+  showPinLockScreen(accountId);
+}
+function requestPinUnlockSequence(accountIds, onSuccess){
+  pinPendingAction={type:'sequence', queue:[...accountIds], onSuccess};
+  showPinLockScreen(accountIds[0]);
+}
+function showPinLockScreen(accountId){
+  const acc=accounts.find(a=>a.id===accountId);
+  pinEntryBuffer='';
+  document.getElementById('pin-lock-title').textContent='Enter PIN';
+  document.getElementById('pin-lock-subtitle').textContent=acc?acc.name:'Account locked';
+  updatePinDots();
+  document.getElementById('pin-overlay').classList.add('show');
+}
+function cancelPinUnlock(){
+  document.getElementById('pin-overlay').classList.remove('show');
+  pinPendingAction=null;
+  pinEntryBuffer='';
+  // If this was a startup lock and nothing got selected, fall back to an unlocked account or 'all' won't show locked data anyway
+  document.getElementById('account-select').value=currentAccount;
+}
+function pinPress(digit){
+  if(pinEntryBuffer.length>=4) return;
+  pinEntryBuffer+=digit;
+  updatePinDots();
+  if(pinEntryBuffer.length===4) setTimeout(checkPinEntry, 150);
+}
+function pinBackspace(){
+  pinEntryBuffer=pinEntryBuffer.slice(0,-1);
+  updatePinDots();
+}
+function updatePinDots(){
+  const dots=document.querySelectorAll('#pin-dots .pin-dot');
+  dots.forEach((d,i)=>{
+    d.className='pin-dot'+(i<pinEntryBuffer.length?' filled':'');
+  });
+}
+function checkPinEntry(){
+  if(!pinPendingAction) return;
+  const currentAccId=pinPendingAction.queue[0];
+  const acc=accounts.find(a=>a.id===currentAccId);
+  if(acc && acc.pin===pinEntryBuffer){
+    unlockedAccounts.add(currentAccId);
+    sessionStorage.setItem('et_unlocked', JSON.stringify([...unlockedAccounts]));
+    pinPendingAction.queue.shift();
+    if(pinPendingAction.queue.length===0){
+      document.getElementById('pin-overlay').classList.remove('show');
+      const cb=pinPendingAction.onSuccess;
+      pinPendingAction=null;
+      pinEntryBuffer='';
+      if(cb) cb();
+    } else {
+      pinEntryBuffer='';
+      showPinLockScreen(pinPendingAction.queue[0]);
+    }
+  } else {
+    // wrong pin - shake/error feedback
+    const dots=document.querySelectorAll('#pin-dots .pin-dot');
+    dots.forEach(d=>d.classList.add('error'));
+    toast('❌ Wrong PIN');
+    setTimeout(()=>{
+      pinEntryBuffer='';
+      updatePinDots();
+    }, 400);
+  }
+}
+
+// ===== PIN: RECOVERY =====
+function startPinRecovery(){
+  if(!pinPendingAction) return;
+  const accId=pinPendingAction.queue[0];
+  const acc=accounts.find(a=>a.id===accId);
+  if(!acc || !acc.securityQ){
+    toast('⚠️ No recovery question set for this account');
+    return;
+  }
+  document.getElementById('pin-recovery-question').textContent=acc.securityQ;
+  document.getElementById('pin-recovery-answer').value='';
+  document.getElementById('pin-recovery-overlay').style.display='flex';
+}
+function closePinRecovery(){
+  document.getElementById('pin-recovery-overlay').style.display='none';
+}
+function verifyPinRecovery(){
+  if(!pinPendingAction) return;
+  const accId=pinPendingAction.queue[0];
+  const acc=accounts.find(a=>a.id===accId);
+  const ans=document.getElementById('pin-recovery-answer').value.trim().toLowerCase();
+  if(!acc || ans!==acc.securityA){
+    toast('❌ Answer doesn\'t match');
+    return;
+  }
+  // Correct - clear the PIN so they can set a new one, and unlock for now
+  delete acc.pin; delete acc.securityQ; delete acc.securityA;
+  unlockedAccounts.add(accId);
+  sessionStorage.setItem('et_unlocked', JSON.stringify([...unlockedAccounts]));
+  save();
+  closePinRecovery();
+  pinPendingAction.queue.shift();
+  if(pinPendingAction.queue.length===0){
+    document.getElementById('pin-overlay').classList.remove('show');
+    const cb=pinPendingAction.onSuccess;
+    pinPendingAction=null;
+    pinEntryBuffer='';
+    if(cb) cb();
+  } else {
+    pinEntryBuffer='';
+    showPinLockScreen(pinPendingAction.queue[0]);
+  }
+  toast('🔓 PIN removed. Set a new one anytime from ⚙️');
 }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2); }
 function fmt(n){ return '₹'+Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
@@ -560,27 +843,84 @@ function addDebt(){
   const amt=parseFloat(document.getElementById('d-amount').value);
   if(!person) return toast('⚠️ Person ka naam daalo!');
   if(!amt||amt<=0) return toast('⚠️ Valid amount daalo!');
+  const accountId = document.getElementById('d-account').value;
+  const date = document.getElementById('d-date').value;
+  const note = document.getElementById('d-note').value.trim();
+  const debtId = uid();
+
+  // Auto-create the matching transaction:
+  // Lent (tu ne diya) -> Expense (paisa nikla)
+  // Borrowed (tu ne liya) -> Income (paisa aaya)
+  const txnId = uid();
+  const txn = {
+    id: txnId,
+    type: debtKind==='lent' ? 'expense' : 'income',
+    amount: amt,
+    category: debtKind==='lent' ? '🤝 Lent (Diya)' : '🙏 Borrowed (Liya)',
+    accountId,
+    note: (debtKind==='lent' ? 'Lent to ' : 'Borrowed from ')+person+(note?' — '+note:''),
+    date,
+    linkedDebtId: debtId
+  };
+  txns.unshift(txn);
+
   debts.unshift({
-    id:uid(), kind:debtKind, person,
+    id:debtId, kind:debtKind, person,
     amount:amt,
-    accountId: document.getElementById('d-account').value,
-    note:document.getElementById('d-note').value.trim(),
-    date:document.getElementById('d-date').value,
-    settled:false
+    accountId,
+    note,
+    date,
+    settled:false,
+    linkedTxnId: txnId,
+    settledTxnId: null
   });
-  save(); renderDebt(); toast('💾 Debt entry saved!');
+  save(); renderDebt(); renderAll(); toast('💾 Debt saved & '+(debtKind==='lent'?'expense':'income')+' logged!');
   document.getElementById('d-person').value='';
   document.getElementById('d-amount').value='';
   document.getElementById('d-note').value='';
 }
 function toggleDebt(id){
-  debts=debts.map(d=>d.id===id?{...d,settled:!d.settled}:d);
-  save(); renderDebt();
+  const d=debts.find(x=>x.id===id);
+  if(!d) return;
+  if(!d.settled){
+    // Marking as settled - ask whether to log the reverse transaction
+    const verb = d.kind==='lent' ? 'received back' : 'paid back';
+    const txType = d.kind==='lent' ? 'income' : 'expense';
+    const wantsLog = confirm(`Mark "${d.person}" (${fmt(d.amount)}) as settled?\n\nAdd as ${txType} (money ${verb})?`);
+    d.settled=true;
+    if(wantsLog){
+      const txnId=uid();
+      txns.unshift({
+        id:txnId,
+        type:txType,
+        amount:d.amount,
+        category: d.kind==='lent' ? '🙏 Borrowed (Liya)' : '🤝 Lent (Diya)',
+        accountId: d.accountId,
+        note: (d.kind==='lent'?'Received back from ':'Paid back to ')+d.person,
+        date: new Date().toISOString().slice(0,10),
+        linkedDebtId: d.id
+      });
+      d.settledTxnId=txnId;
+    }
+  } else {
+    // Reopening - remove the settlement transaction if one was logged
+    if(d.settledTxnId){
+      txns=txns.filter(t=>t.id!==d.settledTxnId);
+      d.settledTxnId=null;
+    }
+    d.settled=false;
+  }
+  save(); renderDebt(); renderAll();
 }
 function deleteDebt(id){
-  if(!confirm('Delete this debt entry?')) return;
+  if(!confirm('Delete this debt entry? This will also remove its linked income/expense entries.')) return;
+  const d=debts.find(x=>x.id===id);
+  if(d){
+    if(d.linkedTxnId) txns=txns.filter(t=>t.id!==d.linkedTxnId);
+    if(d.settledTxnId) txns=txns.filter(t=>t.id!==d.settledTxnId);
+  }
   debts=debts.filter(d=>d.id!==id);
-  save(); renderDebt(); toast('🗑️ Deleted');
+  save(); renderDebt(); renderAll(); toast('🗑️ Deleted');
 }
 
 // ===== RENDER =====
@@ -667,6 +1007,7 @@ function renderDebt(){
             <div style="font-size:14px;font-weight:600">${d.person}</div>
             <div style="font-size:11px;color:#64748b;margin-top:2px">${d.kind==='lent'?'🤝 Lent':'🙏 Borrowed'} · ${fmtDate(d.date)}${currentAccount==='all'?' · '+accountName(d.accountId):''}</div>
             ${d.note?`<div style="font-size:12px;color:#94a3b8;margin-top:3px">${d.note}</div>`:''}
+            ${d.linkedTxnId?`<div style="font-size:10px;color:#6366f1;margin-top:3px">🔗 Logged in ${d.kind==='lent'?'Expense':'Income'}${d.settledTxnId?' + settlement':''}</div>`:''}
           </div>
           <div style="text-align:right">
             <div style="font-size:16px;font-weight:800;color:${d.kind==='lent'?'#fbbf24':'#f87171'}">${fmt(d.amount)}</div>
@@ -975,7 +1316,26 @@ populateCategories();
 populateAccountSelect();
 populateFormAccountSelects();
 setDebtKind('lent');
-renderAll();
+
+// On startup, if the currently selected account (or any, if "all") is PIN-locked
+// and not yet unlocked this session, prompt before showing data.
+function checkStartupLock(){
+  if(currentAccount==='all'){
+    const lockedOnes = accounts.filter(a=>a.pin && !unlockedAccounts.has(a.id));
+    if(lockedOnes.length){
+      requestPinUnlockSequence(lockedOnes.map(a=>a.id), renderAll);
+      return;
+    }
+  } else {
+    const acc=accounts.find(a=>a.id===currentAccount);
+    if(acc && acc.pin && !unlockedAccounts.has(acc.id)){
+      requestPinUnlock(acc.id, renderAll);
+      return;
+    }
+  }
+  renderAll();
+}
+checkStartupLock();
 
 // Service Worker Registration
 if('serviceWorker' in navigator){
