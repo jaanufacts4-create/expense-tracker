@@ -248,7 +248,10 @@ input[type=search]{padding:10px 14px;margin-bottom:12px}
         <span class="daterange-sep">to</span>
         <input type="date" id="export-to"/>
       </div>
-      <button class="export-btn" onclick="exportPdfReport()">📥 Generate & Share PDF</button>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="export-btn" style="margin-top:0" onclick="exportPdfReport('download')">⬇️ Download</button>
+        <button class="export-btn" style="margin-top:0;background:linear-gradient(135deg,#6366f1,#8b5cf6)" onclick="exportPdfReport('share')">📤 Share</button>
+      </div>
       <div class="export-summary" id="export-summary"></div>
     </div>
 
@@ -1025,6 +1028,7 @@ function getExportTxns(){
   if(!from||!to) return [];
   return visibleTxns()
     .filter(t=>t.date>=from && t.date<=to)
+    .filter(t=>txFilter==='all'||t.type===txFilter)
     .sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
 }
 function updateExportSummary(){
@@ -1032,13 +1036,16 @@ function updateExportSummary(){
   if(!el) return;
   const list=getExportTxns();
   const {from,to}=getExportRange();
+  const filterLabel = txFilter==='all' ? 'all' : txFilter;
   if(!from||!to){ el.textContent='Select a date range'; return; }
-  if(!list.length){ el.textContent='No transactions in this range'; return; }
+  if(!list.length){ el.textContent=`No ${filterLabel} transactions in this range`; return; }
   const inc=list.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
   const exp=list.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
-  el.textContent=`${list.length} transactions · ${fmt(inc)} in · ${fmt(exp)} out`;
+  if(txFilter==='income') el.textContent=`${list.length} income entries · ${fmt(inc)} total`;
+  else if(txFilter==='expense') el.textContent=`${list.length} expense entries · ${fmt(exp)} total`;
+  else el.textContent=`${list.length} transactions · ${fmt(inc)} in · ${fmt(exp)} out`;
 }
-function exportPdfReport(){
+function exportPdfReport(mode){
   const list=getExportTxns();
   const {from,to}=getExportRange();
   if(!from||!to) return toast('⚠️ Select both dates!');
@@ -1053,18 +1060,21 @@ function exportPdfReport(){
   let y = 50;
 
   const accName = accountName(currentAccount);
+  const filterTitle = txFilter==='income' ? 'Income Report' : txFilter==='expense' ? 'Expense Report' : 'Expense Tracker Report';
 
   // Header
   doc.setFont('helvetica','bold');
   doc.setFontSize(18);
   doc.setTextColor(99,102,241);
-  doc.text('Expense Tracker Report', marginX, y);
+  doc.text(filterTitle, marginX, y);
   y += 22;
 
   doc.setFont('helvetica','normal');
   doc.setFontSize(10);
   doc.setTextColor(100,100,100);
   doc.text(`Account: ${accName.replace(/[^\x00-\x7F]/g,'').trim()}`, marginX, y);
+  y += 14;
+  doc.text(`Showing: ${txFilter==='all'?'All transactions (income + expense)':txFilter==='income'?'Income only':'Expense only'}`, marginX, y);
   y += 14;
   doc.text(`Period: ${fmtDate(from)}  to  ${fmtDate(to)}`, marginX, y);
   y += 14;
@@ -1079,18 +1089,32 @@ function exportPdfReport(){
   doc.setDrawColor(220,220,220);
   doc.setFillColor(248,249,255);
   doc.roundedRect(marginX, y, pageW-marginX*2, 56, 4, 4, 'FD');
-  const colW=(pageW-marginX*2)/3;
-  doc.setFontSize(9); doc.setTextColor(120,120,120);
-  doc.text('TOTAL INCOME', marginX+14, y+20);
-  doc.text('TOTAL EXPENSE', marginX+14+colW, y+20);
-  doc.text('NET', marginX+14+colW*2, y+20);
-  doc.setFontSize(13); doc.setFont('helvetica','bold');
-  doc.setTextColor(22,163,74);
-  doc.text(rupeeStr(inc), marginX+14, y+40);
-  doc.setTextColor(220,38,38);
-  doc.text(rupeeStr(exp), marginX+14+colW, y+40);
-  doc.setTextColor(net>=0?22:220, net>=0?163:38, net>=0?74:38);
-  doc.text(rupeeStr(net), marginX+14+colW*2, y+40);
+
+  if(txFilter==='income'){
+    doc.setFontSize(9); doc.setTextColor(120,120,120);
+    doc.text('TOTAL INCOME', marginX+14, y+22);
+    doc.setFontSize(16); doc.setFont('helvetica','bold'); doc.setTextColor(22,163,74);
+    doc.text(rupeeStr(inc), marginX+14, y+44);
+  } else if(txFilter==='expense'){
+    doc.setFontSize(9); doc.setTextColor(120,120,120);
+    doc.text('TOTAL EXPENSE', marginX+14, y+22);
+    doc.setFontSize(16); doc.setFont('helvetica','bold'); doc.setTextColor(220,38,38);
+    doc.text(rupeeStr(exp), marginX+14, y+44);
+  } else {
+    const colW=(pageW-marginX*2)/3;
+    doc.setFontSize(9); doc.setTextColor(120,120,120);
+    doc.text('TOTAL INCOME', marginX+14, y+20);
+    doc.text('TOTAL EXPENSE', marginX+14+colW, y+20);
+    doc.text('NET', marginX+14+colW*2, y+20);
+    doc.setFontSize(13); doc.setFont('helvetica','bold');
+    doc.setTextColor(22,163,74);
+    doc.text(rupeeStr(inc), marginX+14, y+40);
+    doc.setTextColor(220,38,38);
+    doc.text(rupeeStr(exp), marginX+14+colW, y+40);
+    doc.setTextColor(net>=0?22:220, net>=0?163:38, net>=0?74:38);
+    doc.text(rupeeStr(net), marginX+14+colW*2, y+40);
+  }
+  doc.setFont('helvetica','normal');
   y += 56+20;
 
   // Table header
@@ -1138,22 +1162,32 @@ function exportPdfReport(){
     doc.text(`Page ${p} of ${pageCount} — Expense Tracker`, pageW/2, pageH-20, {align:'center'});
   }
 
-  const fileName = `Expense_Report_${from}_to_${to}.pdf`;
+  const filterTag = txFilter==='income' ? 'Income' : txFilter==='expense' ? 'Expense' : 'All';
+  const fileName = `${filterTag}_Report_${from}_to_${to}.pdf`;
 
-  // Try native share (works great on mobile), fallback to download
-  try {
-    const blob = doc.output('blob');
-    const file = new File([blob], fileName, {type:'application/pdf'});
-    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
-      navigator.share({files:[file], title:'Expense Report', text:'Expense Tracker Report'})
-        .catch(()=>{ doc.save(fileName); });
-    } else {
+  if(mode==='share'){
+    // User explicitly tapped Share — open native share sheet
+    try {
+      const blob = doc.output('blob');
+      const file = new File([blob], fileName, {type:'application/pdf'});
+      if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+        navigator.share({files:[file], title:'Expense Report', text:'Expense Tracker Report'})
+          .catch(()=>{ /* user cancelled share — that's fine, do nothing */ });
+        toast('📤 Opening share menu...');
+      } else {
+        // Share not supported on this browser/device — fall back to download
+        doc.save(fileName);
+        toast('📥 Sharing not supported — downloaded instead');
+      }
+    } catch(e){
       doc.save(fileName);
+      toast('📥 Downloaded (share failed)');
     }
-  } catch(e){
+  } else {
+    // User explicitly tapped Download — always just save the file
     doc.save(fileName);
+    toast('📥 PDF downloaded!');
   }
-  toast('📄 PDF ready!');
 }
 function rupeeStr(n){
   return 'Rs ' + Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
