@@ -12,6 +12,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png"/>
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png"/>
 <title>💰 Expense Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f172a;color:#f1f5f9;min-height:100vh;overflow-x:hidden}
@@ -83,6 +84,14 @@ select option{background:#1e293b}
 .filter-chip.active{background:#6366f1;color:#fff}
 input[type=month]{padding:7px 10px;font-size:12px;width:auto;margin:0}
 input[type=search]{padding:10px 14px;margin-bottom:12px}
+
+/* Date range / export */
+.daterange-row{display:flex;gap:8px;align-items:center}
+.daterange-row input[type=date]{flex:1;font-size:13px;padding:10px;margin-bottom:0}
+.daterange-sep{color:#475569;font-size:12px;flex-shrink:0}
+.export-btn{width:100%;padding:13px;border-radius:12px;border:none;font-size:14px;font-weight:700;cursor:pointer;margin-top:10px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px}
+.export-btn:disabled{opacity:0.5;cursor:not-allowed}
+.export-summary{font-size:12px;color:#94a3b8;text-align:center;margin-top:8px}
 
 /* Debt cards */
 .debt-card{background:#1e293b;border-radius:12px;padding:12px;margin-bottom:8px;border:1px solid #334155}
@@ -231,6 +240,18 @@ input[type=search]{padding:10px 14px;margin-bottom:12px}
       <button class="filter-chip" onclick="setFilter('expense',this)">Expense</button>
       <input type="month" id="tx-month" onchange="renderTransactions()" style="margin:0"/>
     </div>
+
+    <div class="card">
+      <div class="card-title">📄 Export PDF Report</div>
+      <div class="daterange-row">
+        <input type="date" id="export-from"/>
+        <span class="daterange-sep">to</span>
+        <input type="date" id="export-to"/>
+      </div>
+      <button class="export-btn" onclick="exportPdfReport()">📥 Generate & Share PDF</button>
+      <div class="export-summary" id="export-summary"></div>
+    </div>
+
     <div id="tx-list"></div>
   </div>
 
@@ -244,7 +265,10 @@ input[type=search]{padding:10px 14px;margin-bottom:12px}
       </div>
       <input type="number" id="f-amount" placeholder="Amount (₹)" inputmode="decimal"/>
       <select id="f-category"></select>
-      <select id="f-account"></select>
+      <div id="f-account-wrap" style="display:none">
+        <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600">SAVE TO ACCOUNT:</div>
+        <select id="f-account"></select>
+      </div>
       <input type="text" id="f-note" placeholder="Note (optional)"/>
       <input type="date" id="f-date"/>
       <button class="btn-main" id="form-btn" onclick="submitTransaction()">✅ Add Transaction</button>
@@ -266,7 +290,10 @@ input[type=search]{padding:10px 14px;margin-bottom:12px}
       </div>
       <input type="text" id="d-person" placeholder="Person's name"/>
       <input type="number" id="d-amount" placeholder="Amount (₹)" inputmode="decimal"/>
-      <select id="d-account"></select>
+      <div id="d-account-wrap" style="display:none">
+        <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600">SAVE TO ACCOUNT:</div>
+        <select id="d-account"></select>
+      </div>
       <input type="text" id="d-note" placeholder="Note (optional)"/>
       <input type="date" id="d-date"/>
       <button class="btn-main" onclick="addDebt()">💾 Save Debt Entry</button>
@@ -426,7 +453,8 @@ let accounts = JSON.parse(localStorage.getItem('et_accounts')||'null') || [
   {id:'personal', name:'👤 Personal'},
   {id:'company', name:'🏢 Company'}
 ];
-let currentAccount = localStorage.getItem('et_current_account') || 'all';
+let currentAccount = localStorage.getItem('et_current_account') || 'personal';
+if(currentAccount==='all') currentAccount = accounts[0].id; // migrate away from removed "All Accounts" mode
 let editId = null;
 let txType = 'expense';
 let debtKind = 'lent';
@@ -457,58 +485,33 @@ if(migrated) save();
 
 // ===== ACCOUNTS =====
 function visibleTxns(){
-  if(currentAccount==='all'){
-    return txns.filter(t=>{
-      const acc=accounts.find(a=>a.id===t.accountId);
-      return !acc || !acc.pin || unlockedAccounts.has(acc.id);
-    });
-  }
   return txns.filter(t=>t.accountId===currentAccount);
 }
 function visibleDebts(){
-  if(currentAccount==='all'){
-    return debts.filter(d=>{
-      const acc=accounts.find(a=>a.id===d.accountId);
-      return !acc || !acc.pin || unlockedAccounts.has(acc.id);
-    });
-  }
   return debts.filter(d=>d.accountId===currentAccount);
 }
 function populateAccountSelect(){
   const sel=document.getElementById('account-select');
-  const options = [`<option value="all">🌐 All Accounts</option>`]
-    .concat(accounts.map(a=>`<option value="${a.id}">${a.name}</option>`));
-  sel.innerHTML=options.join('');
+  sel.innerHTML = accounts.map(a=>`<option value="${a.id}">${a.name}</option>`).join('');
+  // Make sure currentAccount actually points to a real, existing account
+  if(!accounts.find(a=>a.id===currentAccount)){
+    currentAccount=accounts[0].id;
+    save();
+  }
   sel.value=currentAccount;
 }
 function switchAccount(id){
-  // If switching to a specific account that has a PIN, and not yet unlocked this session
-  if(id!=='all'){
-    const acc=accounts.find(a=>a.id===id);
-    if(acc && acc.pin && !unlockedAccounts.has(id)){
-      // revert dropdown visually until unlocked
-      document.getElementById('account-select').value=currentAccount;
-      requestPinUnlock(id, ()=>{
-        currentAccount=id;
-        save();
-        document.getElementById('account-select').value=id;
-        renderAll();
-      });
-      return;
-    }
-  } else {
-    // Switching to "All Accounts" - require PIN for any locked account not yet unlocked
-    const lockedOnes = accounts.filter(a=>a.pin && !unlockedAccounts.has(a.id));
-    if(lockedOnes.length){
-      document.getElementById('account-select').value=currentAccount;
-      requestPinUnlockSequence(lockedOnes.map(a=>a.id), ()=>{
-        currentAccount='all';
-        save();
-        document.getElementById('account-select').value='all';
-        renderAll();
-      });
-      return;
-    }
+  const acc=accounts.find(a=>a.id===id);
+  if(acc && acc.pin && !unlockedAccounts.has(id)){
+    // revert dropdown visually until unlocked
+    document.getElementById('account-select').value=currentAccount;
+    requestPinUnlock(id, ()=>{
+      currentAccount=id;
+      save();
+      document.getElementById('account-select').value=id;
+      renderAll();
+    });
+    return;
   }
   currentAccount=id;
   save();
@@ -554,7 +557,7 @@ function deleteAccount(id){
   const fallback=accounts[0].id;
   txns.forEach(t=>{ if(t.accountId===id) t.accountId=fallback; });
   debts.forEach(d=>{ if(d.accountId===id) d.accountId=fallback; });
-  if(currentAccount===id) currentAccount='all';
+  if(currentAccount===id) currentAccount=fallback;
   save();
   populateAccountSelect();
   renderAccountModalList();
@@ -757,6 +760,10 @@ function initDates(){
   document.getElementById('an-month').value = m;
   document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
   document.getElementById('d-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('export-from').value = m+'-01';
+  document.getElementById('export-to').value = new Date().toISOString().slice(0,10);
+  document.getElementById('export-from').addEventListener('change', updateExportSummary);
+  document.getElementById('export-to').addEventListener('change', updateExportSummary);
 }
 
 // ===== FORM =====
@@ -774,9 +781,15 @@ function populateFormAccountSelects(){
   const opts = accounts.map(a=>`<option value="${a.id}">${a.name}</option>`).join('');
   const fAcc=document.getElementById('f-account');
   const dAcc=document.getElementById('d-account');
-  const defaultId = currentAccount==='all' ? accounts[0].id : currentAccount;
-  fAcc.innerHTML=opts; fAcc.value=defaultId;
-  dAcc.innerHTML=opts; dAcc.value=defaultId;
+  const fWrap=document.getElementById('f-account-wrap');
+  const dWrap=document.getElementById('d-account-wrap');
+  fAcc.innerHTML=opts; fAcc.value=currentAccount;
+  dAcc.innerHTML=opts; dAcc.value=currentAccount;
+
+  // Entries always silently save to whichever account is currently active.
+  // No cross-account picker — this keeps account data fully separated.
+  fWrap.style.display='none';
+  dWrap.style.display='none';
 }
 function setDebtKind(k){
   debtKind=k;
@@ -934,13 +947,12 @@ function setFilter(f,el){
 function renderTxRow(tx, showActions=true){
   const color=TYPE_COLOR[tx.type]||'#f1f5f9';
   const sign=tx.type==='expense'?'-':'+';
-  const acctTag = currentAccount==='all' ? ' · '+accountName(tx.accountId) : '';
   return `<div class="tx-row" style="flex-direction:column;align-items:stretch;gap:0">
     <div style="display:flex;align-items:center;gap:10px">
       <div class="tx-icon" style="background:${color}20">${tx.category.split(' ')[0]}</div>
       <div class="tx-info">
         <div class="tx-name">${tx.note||tx.category}</div>
-        <div class="tx-cat">${tx.category} · ${fmtDate(tx.date)}${acctTag}</div>
+        <div class="tx-cat">${tx.category} · ${fmtDate(tx.date)}</div>
       </div>
       <div class="tx-amt" style="color:${color}">${sign}${fmt(tx.amount)}</div>
     </div>
@@ -953,25 +965,33 @@ function renderTxRow(tx, showActions=true){
 
 function renderDashboard(){
   const myTxns=visibleTxns(), myDebts=visibleDebts();
-  const income=myTxns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
-  const expense=myTxns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  // "Income"/"Expense" stats = real earnings/spending only (excludes debt lend/borrow/settle movements)
+  const realTxns = myTxns.filter(t=>!t.linkedDebtId);
+  const income=realTxns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const expense=realTxns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  // Balance = true cash position, includes ALL movements (debt-linked too)
+  const allIncome=myTxns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const allExpense=myTxns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
   const lent=myDebts.filter(d=>d.kind==='lent'&&!d.settled).reduce((s,d)=>s+d.amount,0);
   document.getElementById('d-income').textContent=fmt(income);
   document.getElementById('d-expense').textContent=fmt(expense);
-  const bal=income-expense;
+  const bal=allIncome-allExpense;
   document.getElementById('d-balance').textContent=fmt(bal);
   document.getElementById('d-balance').style.color=bal>=0?'#a5b4fc':'#f87171';
   document.getElementById('d-lent').textContent=fmt(lent);
   document.getElementById('hdr-balance').textContent=fmt(bal);
 
-  // Monthly
+  // Monthly (same real vs all distinction)
   const m=document.getElementById('dash-month').value;
   const mTxns=myTxns.filter(t=>t.date.startsWith(m));
-  const mInc=mTxns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
-  const mExp=mTxns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  const mRealTxns=mTxns.filter(t=>!t.linkedDebtId);
+  const mInc=mRealTxns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const mExp=mRealTxns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  const mAllInc=mTxns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const mAllExp=mTxns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
   document.getElementById('m-income').textContent=fmt(mInc);
   document.getElementById('m-expense').textContent=fmt(mExp);
-  document.getElementById('m-saved').textContent=fmt(mInc-mExp);
+  document.getElementById('m-saved').textContent=fmt(mAllInc-mAllExp);
 
   // Recent 5
   const recent=[...myTxns].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
@@ -991,6 +1011,152 @@ function renderTransactions(){
   document.getElementById('tx-list').innerHTML = list.length
     ? list.map(t=>`<div class="card" style="padding:10px;margin-bottom:8px">${renderTxRow(t,true)}</div>`).join('')
     : '<div class="empty"><big>😶</big>No transactions found</div>';
+  updateExportSummary();
+}
+
+// ===== PDF EXPORT =====
+function getExportRange(){
+  const from=document.getElementById('export-from').value;
+  const to=document.getElementById('export-to').value;
+  return {from, to};
+}
+function getExportTxns(){
+  const {from,to}=getExportRange();
+  if(!from||!to) return [];
+  return visibleTxns()
+    .filter(t=>t.date>=from && t.date<=to)
+    .sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
+}
+function updateExportSummary(){
+  const el=document.getElementById('export-summary');
+  if(!el) return;
+  const list=getExportTxns();
+  const {from,to}=getExportRange();
+  if(!from||!to){ el.textContent='Select a date range'; return; }
+  if(!list.length){ el.textContent='No transactions in this range'; return; }
+  const inc=list.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const exp=list.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  el.textContent=`${list.length} transactions · ${fmt(inc)} in · ${fmt(exp)} out`;
+}
+function exportPdfReport(){
+  const list=getExportTxns();
+  const {from,to}=getExportRange();
+  if(!from||!to) return toast('⚠️ Select both dates!');
+  if(!list.length) return toast('⚠️ No transactions in this range');
+  if(typeof window.jspdf==='undefined') return toast('⚠️ PDF library not loaded — check internet connection');
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'a4'});
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const marginX = 40;
+  let y = 50;
+
+  const accName = accountName(currentAccount);
+
+  // Header
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(18);
+  doc.setTextColor(99,102,241);
+  doc.text('Expense Tracker Report', marginX, y);
+  y += 22;
+
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
+  doc.setTextColor(100,100,100);
+  doc.text(`Account: ${accName.replace(/[^\x00-\x7F]/g,'').trim()}`, marginX, y);
+  y += 14;
+  doc.text(`Period: ${fmtDate(from)}  to  ${fmtDate(to)}`, marginX, y);
+  y += 14;
+  doc.text(`Generated: ${fmtDate(new Date().toISOString().slice(0,10))}`, marginX, y);
+  y += 20;
+
+  // Summary box
+  const inc=list.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const exp=list.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  const net=inc-exp;
+
+  doc.setDrawColor(220,220,220);
+  doc.setFillColor(248,249,255);
+  doc.roundedRect(marginX, y, pageW-marginX*2, 56, 4, 4, 'FD');
+  const colW=(pageW-marginX*2)/3;
+  doc.setFontSize(9); doc.setTextColor(120,120,120);
+  doc.text('TOTAL INCOME', marginX+14, y+20);
+  doc.text('TOTAL EXPENSE', marginX+14+colW, y+20);
+  doc.text('NET', marginX+14+colW*2, y+20);
+  doc.setFontSize(13); doc.setFont('helvetica','bold');
+  doc.setTextColor(22,163,74);
+  doc.text(rupeeStr(inc), marginX+14, y+40);
+  doc.setTextColor(220,38,38);
+  doc.text(rupeeStr(exp), marginX+14+colW, y+40);
+  doc.setTextColor(net>=0?22:220, net>=0?163:38, net>=0?74:38);
+  doc.text(rupeeStr(net), marginX+14+colW*2, y+40);
+  y += 56+20;
+
+  // Table header
+  function drawTableHeader(){
+    doc.setFillColor(99,102,241);
+    doc.rect(marginX, y, pageW-marginX*2, 22, 'F');
+    doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(255,255,255);
+    doc.text('DATE', marginX+8, y+15);
+    doc.text('CATEGORY', marginX+85, y+15);
+    doc.text('NOTE', marginX+230, y+15);
+    doc.text('AMOUNT', pageW-marginX-8, y+15, {align:'right'});
+    y += 22;
+  }
+  drawTableHeader();
+
+  doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  list.forEach((t,i)=>{
+    if(y > pageH-60){
+      doc.addPage();
+      y=50;
+      drawTableHeader();
+    }
+    if(i%2===0){
+      doc.setFillColor(248,249,252);
+      doc.rect(marginX, y, pageW-marginX*2, 20, 'F');
+    }
+    doc.setTextColor(60,60,60);
+    doc.text(fmtDate(t.date), marginX+8, y+14);
+    const catClean = t.category.replace(/[^\x00-\x7F]/g,'').trim();
+    doc.text(catClean.slice(0,22), marginX+85, y+14);
+    const noteClean = (t.note||'-').replace(/[^\x00-\x7F]/g,'').trim() || '-';
+    doc.text(noteClean.slice(0,28), marginX+230, y+14);
+    doc.setTextColor(t.type==='income'?22:220, t.type==='income'?163:38, t.type==='income'?74:38);
+    doc.setFont('helvetica','bold');
+    doc.text((t.type==='income'?'+':'-')+rupeeStr(t.amount), pageW-marginX-8, y+14, {align:'right'});
+    doc.setFont('helvetica','normal');
+    y += 20;
+  });
+
+  // Footer page numbers
+  const pageCount = doc.internal.getNumberOfPages();
+  for(let p=1;p<=pageCount;p++){
+    doc.setPage(p);
+    doc.setFontSize(8); doc.setTextColor(150,150,150);
+    doc.text(`Page ${p} of ${pageCount} — Expense Tracker`, pageW/2, pageH-20, {align:'center'});
+  }
+
+  const fileName = `Expense_Report_${from}_to_${to}.pdf`;
+
+  // Try native share (works great on mobile), fallback to download
+  try {
+    const blob = doc.output('blob');
+    const file = new File([blob], fileName, {type:'application/pdf'});
+    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+      navigator.share({files:[file], title:'Expense Report', text:'Expense Tracker Report'})
+        .catch(()=>{ doc.save(fileName); });
+    } else {
+      doc.save(fileName);
+    }
+  } catch(e){
+    doc.save(fileName);
+  }
+  toast('📄 PDF ready!');
+}
+function rupeeStr(n){
+  return 'Rs ' + Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
 
 function renderDebt(){
@@ -1005,7 +1171,7 @@ function renderDebt(){
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div>
             <div style="font-size:14px;font-weight:600">${d.person}</div>
-            <div style="font-size:11px;color:#64748b;margin-top:2px">${d.kind==='lent'?'🤝 Lent':'🙏 Borrowed'} · ${fmtDate(d.date)}${currentAccount==='all'?' · '+accountName(d.accountId):''}</div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px">${d.kind==='lent'?'🤝 Lent':'🙏 Borrowed'} · ${fmtDate(d.date)}</div>
             ${d.note?`<div style="font-size:12px;color:#94a3b8;margin-top:3px">${d.note}</div>`:''}
             ${d.linkedTxnId?`<div style="font-size:10px;color:#6366f1;margin-top:3px">🔗 Logged in ${d.kind==='lent'?'Expense':'Income'}${d.settledTxnId?' + settlement':''}</div>`:''}
           </div>
@@ -1244,6 +1410,10 @@ function renderAnalytics(){
   const expenses=mTxns.filter(t=>t.type==='expense');
   const income=mTxns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
   const expTotal=expenses.reduce((s,t)=>s+t.amount,0);
+  // Real (non debt-linked) totals — used for Income/Expense/Saved/Savings-rate summary
+  // so lending/borrowing money doesn't look like real earning or spending.
+  const realIncome=mTxns.filter(t=>t.type==='income'&&!t.linkedDebtId).reduce((s,t)=>s+t.amount,0);
+  const realExpense=mTxns.filter(t=>t.type==='expense'&&!t.linkedDebtId).reduce((s,t)=>s+t.amount,0);
 
   // Pie data
   const catMap={};
@@ -1296,11 +1466,11 @@ function renderAnalytics(){
 
   // Summary
   document.getElementById('an-summary').innerHTML=`
-    <div class="month-row"><span style="color:#94a3b8">💵 Total Income</span><span style="color:#4ade80;font-weight:700">${fmt(income)}</span></div>
-    <div class="month-row"><span style="color:#94a3b8">💸 Total Expense</span><span style="color:#f87171;font-weight:700">${fmt(expTotal)}</span></div>
-    <div class="month-row"><span style="color:#94a3b8">💰 Net Saved</span><span style="color:${income-expTotal>=0?'#a5b4fc':'#f87171'};font-weight:700">${fmt(income-expTotal)}</span></div>
+    <div class="month-row"><span style="color:#94a3b8">💵 Total Income</span><span style="color:#4ade80;font-weight:700">${fmt(realIncome)}</span></div>
+    <div class="month-row"><span style="color:#94a3b8">💸 Total Expense</span><span style="color:#f87171;font-weight:700">${fmt(realExpense)}</span></div>
+    <div class="month-row"><span style="color:#94a3b8">💰 Net Saved</span><span style="color:${realIncome-realExpense>=0?'#a5b4fc':'#f87171'};font-weight:700">${fmt(realIncome-realExpense)}</span></div>
     <div class="month-row"><span style="color:#94a3b8">📝 Transactions</span><span style="color:#f1f5f9;font-weight:700">${mTxns.length} entries</span></div>
-    <div class="month-row"><span style="color:#94a3b8">📊 Savings Rate</span><span style="color:#fbbf24;font-weight:700">${income?Math.round((income-expTotal)/income*100):0}%</span></div>`;
+    <div class="month-row"><span style="color:#94a3b8">📊 Savings Rate</span><span style="color:#fbbf24;font-weight:700">${realIncome?Math.round((realIncome-realExpense)/realIncome*100):0}%</span></div>`;
 }
 
 function renderAll(){
@@ -1317,21 +1487,13 @@ populateAccountSelect();
 populateFormAccountSelects();
 setDebtKind('lent');
 
-// On startup, if the currently selected account (or any, if "all") is PIN-locked
+// On startup, if the currently selected account is PIN-locked
 // and not yet unlocked this session, prompt before showing data.
 function checkStartupLock(){
-  if(currentAccount==='all'){
-    const lockedOnes = accounts.filter(a=>a.pin && !unlockedAccounts.has(a.id));
-    if(lockedOnes.length){
-      requestPinUnlockSequence(lockedOnes.map(a=>a.id), renderAll);
-      return;
-    }
-  } else {
-    const acc=accounts.find(a=>a.id===currentAccount);
-    if(acc && acc.pin && !unlockedAccounts.has(acc.id)){
-      requestPinUnlock(acc.id, renderAll);
-      return;
-    }
+  const acc=accounts.find(a=>a.id===currentAccount);
+  if(acc && acc.pin && !unlockedAccounts.has(acc.id)){
+    requestPinUnlock(acc.id, renderAll);
+    return;
   }
   renderAll();
 }
